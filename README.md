@@ -24,7 +24,7 @@ Connect Claude Code to your Syncaida workspace using the Model Context Protocol 
 claude mcp add --scope user --transport stdio syncaida \
   --env SYNCAIDA_API_URL="http://localhost:8052" \
   --env SYNCAIDA_API_TOKEN="your-token-here" \
-  -- npx @syncaida/mcp-server@latest
+  -- npx syncaida-mcp-server@latest
 ```
 
 ### Verify Installation
