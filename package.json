@@ -1,0 +1,39 @@
+{
+  "name": "@syncaida/mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Syncaida - Connect Claude Code to your Syncaida workspace",
+  "main": "dist/index.js",
+  "bin": {
+    "syncaida-mcp": "dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "syncaida",
+    "claude",
+    "ai"
+  ],
+  "author": "Syncaida",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/syncaida/mcp-server"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "axios": "^1.7.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
