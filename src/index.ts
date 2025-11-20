@@ -300,7 +300,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'list_whiteboards': {
-        const response = await api.get('/api/v1/boards');
+        const response = await api.get('/api/v1/boards', {
+          params: { all_orgs: true }
+        });
         return {
           content: [
             {
