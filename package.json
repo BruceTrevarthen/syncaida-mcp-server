@@ -1,6 +1,6 @@
 {
-  "name": "syncaida-mcp-server",
-  "version": "1.0.1",
+  "name": "@scriptedventures/syncaida-mcp-server",
+  "version": "1.0.0",
   "description": "MCP server for Syncaida - Connect Claude Code to your Syncaida workspace",
   "main": "dist/index.js",
   "bin": {
