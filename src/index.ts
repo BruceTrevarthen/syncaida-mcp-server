@@ -329,7 +329,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const response = await api.post('/api/v1/boards', {
           title: args.title,
           description: args.description || '',
-          board_data: { elements: [], appState: {}, files: {} },
         });
         return {
           content: [
@@ -478,7 +477,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new Error(`Unknown tool: ${name}`);
     }
   } catch (error: any) {
-    const errorMessage = error.response?.data?.detail || error.message || 'Unknown error';
+    // Handle error response from API
+    let errorMessage = 'Unknown error';
+    if (error.response?.data?.detail) {
+      const detail = error.response.data.detail;
+      // If detail is an object (like quota errors), stringify it nicely
+      if (typeof detail === 'object') {
+        errorMessage = detail.message || JSON.stringify(detail, null, 2);
+      } else {
+        errorMessage = detail;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
     return {
       content: [
         {
