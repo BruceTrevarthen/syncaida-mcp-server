@@ -7,7 +7,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import axios, { AxiosInstance } from 'axios';
-import { createFlowchart, createArchitectureDiagram, FlowchartNode, FlowchartEdge, ArchitectureComponent, ArchitectureConnection } from './diagram-generator.js';
+// Diagram generation now happens server-side for better control and consistency
 
 // Environment variables
 const SYNCAIDA_API_URL = process.env.SYNCAIDA_API_URL || 'http://localhost:8052';
@@ -31,7 +31,7 @@ const api: AxiosInstance = axios.create({
 const server = new Server(
   {
     name: 'syncaida-mcp',
-    version: '1.0.0',
+    version: '2.0.0',
   },
   {
     capabilities: {
@@ -436,34 +436,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'create_flowchart': {
-        const nodes = args.nodes as unknown as FlowchartNode[];
-        const edges = args.edges as unknown as FlowchartEdge[];
-        const diagram = createFlowchart(nodes, edges);
-
-        const response = await api.post(`/api/v1/boards/${args.board_id}/scene`, diagram);
+        // Server-side diagram generation for better quality and consistency
+        const response = await api.post(`/api/v1/boards/${args.board_id}/diagram/flowchart`, {
+          nodes: args.nodes,
+          edges: args.edges
+        });
 
         return {
           content: [
             {
               type: 'text',
-              text: `Flowchart created successfully on whiteboard!\nAdded ${nodes.length} nodes and ${edges.length} connections.`,
+              text: `Flowchart created successfully!\n${response.data.message}\nGenerated ${response.data.element_count} Excalidraw elements.`,
             },
           ],
         };
       }
 
       case 'create_architecture_diagram': {
-        const components = args.components as unknown as ArchitectureComponent[];
-        const connections = args.connections as unknown as ArchitectureConnection[];
-        const diagram = createArchitectureDiagram(components, connections);
-
-        const response = await api.post(`/api/v1/boards/${args.board_id}/scene`, diagram);
+        // Server-side diagram generation for better quality and consistency
+        const response = await api.post(`/api/v1/boards/${args.board_id}/diagram/architecture`, {
+          components: args.components,
+          connections: args.connections
+        });
 
         return {
           content: [
             {
               type: 'text',
-              text: `Architecture diagram created successfully on whiteboard!\nAdded ${components.length} components and ${connections.length} connections.`,
+              text: `Architecture diagram created successfully!\n${response.data.message}\nGenerated ${response.data.element_count} Excalidraw elements.`,
             },
           ],
         };
