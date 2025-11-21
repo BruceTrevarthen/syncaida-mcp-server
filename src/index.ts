@@ -440,9 +440,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const edges = args.edges as unknown as FlowchartEdge[];
         const diagram = createFlowchart(nodes, edges);
 
-        const response = await api.patch(`/api/v1/boards/${args.board_id}`, {
-          board_data: diagram,
-        });
+        const response = await api.post(`/api/v1/boards/${args.board_id}/scene`, diagram);
 
         return {
           content: [
@@ -459,9 +457,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const connections = args.connections as unknown as ArchitectureConnection[];
         const diagram = createArchitectureDiagram(components, connections);
 
-        const response = await api.patch(`/api/v1/boards/${args.board_id}`, {
-          board_data: diagram,
-        });
+        const response = await api.post(`/api/v1/boards/${args.board_id}/scene`, diagram);
 
         return {
           content: [
