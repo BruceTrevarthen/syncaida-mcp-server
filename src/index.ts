@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as readline from 'readline';
 import { homedir } from 'os';
 
-const VERSION = '2.0.2';
+const VERSION = '2.0.3';
 const CONFIG_DIR = path.join(homedir(), '.syncaida');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const DEFAULT_API_URL = 'https://api.syncaida.com';
@@ -427,9 +427,8 @@ async function startServer(apiUrl: string, apiToken: string): Promise<void> {
     try {
       switch (name) {
         case 'list_whiteboards': {
-          const response = await api.get('/api/v1/boards', {
-            params: { all_orgs: true }
-          });
+          // Backend automatically scopes to API token's org
+          const response = await api.get('/api/v1/boards');
           return {
             content: [
               {
