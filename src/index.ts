@@ -7,40 +7,17 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import axios, { AxiosInstance } from 'axios';
-// Diagram generation now happens server-side for better control and consistency
+import * as fs from 'fs';
+import * as path from 'path';
+import * as readline from 'readline';
+import { homedir } from 'os';
 
-// Environment variables
-const SYNCAIDA_API_URL = process.env.SYNCAIDA_API_URL || 'http://localhost:8052';
-const SYNCAIDA_API_TOKEN = process.env.SYNCAIDA_API_TOKEN;
+const VERSION = '2.0.2';
+const CONFIG_DIR = path.join(homedir(), '.syncaida');
+const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+const DEFAULT_API_URL = 'https://api.syncaida.com';
 
-if (!SYNCAIDA_API_TOKEN) {
-  console.error('Error: SYNCAIDA_API_TOKEN environment variable is required');
-  process.exit(1);
-}
-
-// Create axios instance with auth
-const api: AxiosInstance = axios.create({
-  baseURL: SYNCAIDA_API_URL,
-  headers: {
-    'Authorization': `Bearer ${SYNCAIDA_API_TOKEN}`,
-    'Content-Type': 'application/json',
-  },
-});
-
-// Create MCP server
-const server = new Server(
-  {
-    name: 'syncaida-mcp',
-    version: '2.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
-);
-
-// Tool definitions
+// Tool definitions (static, does not need to be inside function)
 const TOOLS = [
   {
     name: 'list_whiteboards',
@@ -285,225 +262,421 @@ const TOOLS = [
   },
 ];
 
-// Register tool handlers
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: TOOLS,
-}));
-
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  if (!args) {
-    throw new Error('No arguments provided');
-  }
-
+// Load config from global config file
+function loadConfig(): { apiUrl?: string; apiToken?: string } {
   try {
-    switch (name) {
-      case 'list_whiteboards': {
-        const response = await api.get('/api/v1/boards', {
-          params: { all_orgs: true }
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
-      }
-
-      case 'get_whiteboard': {
-        const response = await api.get(`/api/v1/boards/${args.board_id}`);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
-      }
-
-      case 'create_whiteboard': {
-        const response = await api.post('/api/v1/boards', {
-          title: args.title,
-          description: args.description || '',
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Whiteboard created successfully!\n${JSON.stringify(response.data, null, 2)}`,
-            },
-          ],
-        };
-      }
-
-      case 'update_whiteboard': {
-        const updateData: any = {};
-        if (args.title) updateData.title = args.title;
-        if (args.description !== undefined) updateData.description = args.description;
-        if (args.content) updateData.board_data = args.content;
-
-        const response = await api.patch(`/api/v1/boards/${args.board_id}`, updateData);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Whiteboard updated successfully!\n${JSON.stringify(response.data, null, 2)}`,
-            },
-          ],
-        };
-      }
-
-      case 'list_workboards': {
-        const response = await api.get('/api/v1/workboards');
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
-      }
-
-      case 'create_workboard': {
-        const response = await api.post('/api/v1/workboards', {
-          title: args.title,
-          description: args.description || '',
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Workboard created successfully!\n${JSON.stringify(response.data, null, 2)}`,
-            },
-          ],
-        };
-      }
-
-      case 'list_tasks': {
-        let url = '/api/v1/tasks';
-        if (args.status) {
-          url += `?status=${args.status}`;
-        }
-        const response = await api.get(url);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(response.data, null, 2),
-            },
-          ],
-        };
-      }
-
-      case 'create_task': {
-        const response = await api.post('/api/v1/tasks', {
-          title: args.title,
-          description: args.description || '',
-          priority: args.priority || 'medium',
-          due_date: args.due_date || null,
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Task created successfully!\n${JSON.stringify(response.data, null, 2)}`,
-            },
-          ],
-        };
-      }
-
-      case 'update_task': {
-        const updateData: any = {};
-        if (args.title) updateData.title = args.title;
-        if (args.description !== undefined) updateData.description = args.description;
-        if (args.status) updateData.status = args.status;
-        if (args.priority) updateData.priority = args.priority;
-
-        const response = await api.patch(`/api/v1/tasks/${args.task_id}`, updateData);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Task updated successfully!\n${JSON.stringify(response.data, null, 2)}`,
-            },
-          ],
-        };
-      }
-
-      case 'create_flowchart': {
-        // Server-side diagram generation for better quality and consistency
-        const response = await api.post(`/api/v1/boards/${args.board_id}/diagram/flowchart`, {
-          nodes: args.nodes,
-          edges: args.edges
-        });
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Flowchart created successfully!\n${response.data.message}\nGenerated ${response.data.element_count} Excalidraw elements.`,
-            },
-          ],
-        };
-      }
-
-      case 'create_architecture_diagram': {
-        // Server-side diagram generation for better quality and consistency
-        const response = await api.post(`/api/v1/boards/${args.board_id}/diagram/architecture`, {
-          components: args.components,
-          connections: args.connections
-        });
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Architecture diagram created successfully!\n${response.data.message}\nGenerated ${response.data.element_count} Excalidraw elements.`,
-            },
-          ],
-        };
-      }
-
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+    if (fs.existsSync(CONFIG_FILE)) {
+      const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
+      return JSON.parse(content);
     }
-  } catch (error: any) {
-    // Handle error response from API
-    let errorMessage = 'Unknown error';
-    if (error.response?.data?.detail) {
-      const detail = error.response.data.detail;
-      // If detail is an object (like quota errors), stringify it nicely
-      if (typeof detail === 'object') {
-        errorMessage = detail.message || JSON.stringify(detail, null, 2);
-      } else {
-        errorMessage = detail;
-      }
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Error: ${errorMessage}`,
-        },
-      ],
-      isError: true,
-    };
+  } catch (e) {
+    // Ignore errors, return empty config
   }
-});
+  return {};
+}
 
-// Start the server
-async function main() {
+// Save config to global config file
+function saveConfig(config: { apiUrl?: string; apiToken?: string }): void {
+  if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  }
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+}
+
+// Interactive setup
+async function runSetup(): Promise<void> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const question = (prompt: string): Promise<string> => {
+    return new Promise((resolve) => {
+      rl.question(prompt, resolve);
+    });
+  };
+
+  console.log(`
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                        Syncaida MCP Server Setup                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+This will configure the Syncaida MCP server globally for all AI clients
+(Claude Code, Gemini CLI, Cursor, etc.)
+
+To get your API token:
+  1. Log in to https://app.syncaida.com
+  2. Go to Settings > MCP Setup
+  3. Copy your API token
+`);
+
+  const token = await question('Enter your Syncaida API token: ');
+
+  if (!token || !token.trim()) {
+    console.log('\nSetup cancelled. No token provided.');
+    rl.close();
+    process.exit(1);
+  }
+
+  const apiUrl = await question(`API URL (press Enter for default: ${DEFAULT_API_URL}): `);
+
+  const config = {
+    apiToken: token.trim(),
+    apiUrl: apiUrl.trim() || DEFAULT_API_URL,
+  };
+
+  saveConfig(config);
+  rl.close();
+
+  console.log(`
+Configuration saved to: ${CONFIG_FILE}
+
+Now add Syncaida to your AI client:
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  Claude Code (~/.claude/mcp.json):                                           │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  {                                                                           │
+│    "mcpServers": {                                                           │
+│      "syncaida": {                                                           │
+│        "command": "npx",                                                     │
+│        "args": ["@scriptedventures/syncaida-mcp-server@latest"]              │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│                                                                              │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  Gemini CLI (~/.gemini/settings.json):                                       │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  {                                                                           │
+│    "mcpServers": {                                                           │
+│      "syncaida": {                                                           │
+│        "command": "npx",                                                     │
+│        "args": ["@scriptedventures/syncaida-mcp-server@latest"]              │
+│      }                                                                       │
+│    }                                                                         │
+│  }                                                                           │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+No "env" section needed - your token is stored globally.
+
+Setup complete. Restart your AI client to use Syncaida.
+`);
+}
+
+// Show help
+function showHelp(): void {
+  console.log(`
+Syncaida MCP Server v${VERSION}
+
+Usage:
+  npx @scriptedventures/syncaida-mcp-server [options]
+
+Options:
+  --setup     Configure your API token (one-time setup)
+  --help      Show this help message
+  --version   Show version number
+
+Examples:
+  npx @scriptedventures/syncaida-mcp-server --setup    # First-time setup
+  npx @scriptedventures/syncaida-mcp-server            # Run MCP server
+
+For more help: https://app.syncaida.com/settings (MCP Setup tab)
+`);
+}
+
+// Start the MCP server
+async function startServer(apiUrl: string, apiToken: string): Promise<void> {
+  // Create axios instance with auth
+  const api: AxiosInstance = axios.create({
+    baseURL: apiUrl,
+    headers: {
+      'Authorization': `Bearer ${apiToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  // Create MCP server
+  const server = new Server(
+    {
+      name: 'syncaida-mcp',
+      version: VERSION,
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
+  );
+
+  // Register tool handlers
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: TOOLS,
+  }));
+
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+
+    if (!args) {
+      throw new Error('No arguments provided');
+    }
+
+    try {
+      switch (name) {
+        case 'list_whiteboards': {
+          const response = await api.get('/api/v1/boards', {
+            params: { all_orgs: true }
+          });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(response.data, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'get_whiteboard': {
+          const response = await api.get(`/api/v1/boards/${args.board_id}`);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(response.data, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'create_whiteboard': {
+          const response = await api.post('/api/v1/boards', {
+            title: args.title,
+            description: args.description || '',
+          });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Whiteboard created successfully!\n${JSON.stringify(response.data, null, 2)}`,
+              },
+            ],
+          };
+        }
+
+        case 'update_whiteboard': {
+          const updateData: any = {};
+          if (args.title) updateData.title = args.title;
+          if (args.description !== undefined) updateData.description = args.description;
+          if (args.content) updateData.board_data = args.content;
+
+          const response = await api.patch(`/api/v1/boards/${args.board_id}`, updateData);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Whiteboard updated successfully!\n${JSON.stringify(response.data, null, 2)}`,
+              },
+            ],
+          };
+        }
+
+        case 'list_workboards': {
+          const response = await api.get('/api/v1/workboards');
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(response.data, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'create_workboard': {
+          const response = await api.post('/api/v1/workboards', {
+            title: args.title,
+            description: args.description || '',
+          });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Workboard created successfully!\n${JSON.stringify(response.data, null, 2)}`,
+              },
+            ],
+          };
+        }
+
+        case 'list_tasks': {
+          let url = '/api/v1/tasks';
+          if (args.status) {
+            url += `?status=${args.status}`;
+          }
+          const response = await api.get(url);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(response.data, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'create_task': {
+          const response = await api.post('/api/v1/tasks', {
+            title: args.title,
+            description: args.description || '',
+            priority: args.priority || 'medium',
+            due_date: args.due_date || null,
+          });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Task created successfully!\n${JSON.stringify(response.data, null, 2)}`,
+              },
+            ],
+          };
+        }
+
+        case 'update_task': {
+          const updateData: any = {};
+          if (args.title) updateData.title = args.title;
+          if (args.description !== undefined) updateData.description = args.description;
+          if (args.status) updateData.status = args.status;
+          if (args.priority) updateData.priority = args.priority;
+
+          const response = await api.patch(`/api/v1/tasks/${args.task_id}`, updateData);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Task updated successfully!\n${JSON.stringify(response.data, null, 2)}`,
+              },
+            ],
+          };
+        }
+
+        case 'create_flowchart': {
+          const response = await api.post(`/api/v1/boards/${args.board_id}/diagram/flowchart`, {
+            nodes: args.nodes,
+            edges: args.edges
+          });
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Flowchart created successfully!\n${response.data.message}\nGenerated ${response.data.element_count} Excalidraw elements.`,
+              },
+            ],
+          };
+        }
+
+        case 'create_architecture_diagram': {
+          const response = await api.post(`/api/v1/boards/${args.board_id}/diagram/architecture`, {
+            components: args.components,
+            connections: args.connections
+          });
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Architecture diagram created successfully!\n${response.data.message}\nGenerated ${response.data.element_count} Excalidraw elements.`,
+              },
+            ],
+          };
+        }
+
+        default:
+          throw new Error(`Unknown tool: ${name}`);
+      }
+    } catch (error: any) {
+      // Handle error response from API
+      let errorMessage = 'Unknown error';
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        if (typeof detail === 'object') {
+          errorMessage = detail.message || JSON.stringify(detail, null, 2);
+        } else {
+          errorMessage = detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error: ${errorMessage}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  // Connect and start
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('Syncaida MCP server running on stdio');
+}
+
+// Main entry point
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+
+  if (args.includes('--help') || args.includes('-h')) {
+    showHelp();
+    process.exit(0);
+  }
+
+  if (args.includes('--version') || args.includes('-v')) {
+    console.log(VERSION);
+    process.exit(0);
+  }
+
+  if (args.includes('--setup')) {
+    await runSetup();
+    process.exit(0);
+  }
+
+  // Normal MCP server mode - get config from env vars or global config
+  const globalConfig = loadConfig();
+
+  const apiUrl = process.env.SYNCAIDA_API_URL || globalConfig.apiUrl || DEFAULT_API_URL;
+  const apiToken = process.env.SYNCAIDA_API_TOKEN || globalConfig.apiToken;
+
+  if (!apiToken) {
+    console.error(`
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                        Syncaida MCP Server Setup                             ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║                                                                              ║
+║  No API token configured. Run setup first:                                   ║
+║                                                                              ║
+║    npx @scriptedventures/syncaida-mcp-server --setup                         ║
+║                                                                              ║
+║  To get your API token:                                                      ║
+║    1. Log in to https://app.syncaida.com                                     ║
+║    2. Go to Settings > MCP Setup                                             ║
+║    3. Copy your API token                                                    ║
+║                                                                              ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  For more help: https://app.syncaida.com/settings (MCP Setup tab)            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+`);
+    process.exit(1);
+  }
+
+  await startServer(apiUrl, apiToken);
 }
 
 main().catch((error) => {
